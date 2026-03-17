@@ -130,8 +130,8 @@ EMAIL_FROM    = os.environ.get('EMAIL_FROM', '9526563@gmail.com')
 EMAIL_TO      = os.environ.get('EMAIL_TO', 'f-heads@mail.ru')
 EMAIL_PASS    = os.environ.get('EMAIL_PASS', 'ziduyeuhuwgjnwjh')
 
-def send_notification(name, group, scales, interpreted):
-    """Отправляет email с профилем респондента"""
+def send_notification(name, group, scales, interpreted, respondent_email=None):
+    """Отправляет email с профилем — исследователю и респонденту"""
     try:
         group_label = 'Предприниматель' if group == 'entrepreneur' else 'Наёмный работник'
         subject = f'Новое прохождение: {name} ({group_label})'
@@ -186,6 +186,21 @@ def send_notification(name, group, scales, interpreted):
         with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
             server.login(EMAIL_FROM, EMAIL_PASS)
             server.sendmail(EMAIL_FROM, EMAIL_TO, msg.as_string())
+            # Отправляем копию респонденту если указал email
+            if respondent_email:
+                msg2 = MIMEMultipart('alternative')
+                msg2['Subject'] = f'Ваш психологический профиль — результаты исследования'
+                msg2['From'] = EMAIL_FROM
+                msg2['To'] = respondent_email
+                resp_html = f'''
+                <html><body style="font-family:Arial,sans-serif; max-width:700px; margin:0 auto;">
+                <h2 style="color:#1F4E79;">Здравствуйте, {name}!</h2>
+                <p style="color:#555; line-height:1.6;">Благодарим за участие в психологическом исследовании. 
+                Ниже — ваш индивидуальный профиль с расшифровкой результатов и персональными рекомендациями.</p>
+                <hr style="border:1px solid #eee; margin:20px 0;">
+                ''' + html.split('<hr style="border:1px solid #eee; margin:20px 0;">')[1] if '<hr' in html else html
+                msg2.attach(MIMEText(resp_html, 'html', 'utf-8'))
+                server.sendmail(EMAIL_FROM, respondent_email, msg2.as_string())
     except Exception as e:
         print(f'Email error: {e}')  # не ломаем приложение если email не ушёл
 
@@ -701,6 +716,7 @@ METHODS = {
 # Социально-демографический блок
 SOCDEM_ENTREPRENEUR = [
     {'id':'sd_name','label':'Ваше имя и фамилия','type':'text'},
+    {'id':'sd_email','label':'Ваш email','type':'email','hint':'На этот адрес будет отправлена расшифровка ваших результатов'},
     {'id':'sd_gender','label':'Ваш пол','type':'radio','options':['Мужской','Женский','Предпочитаю не указывать']},
     {'id':'sd_age','label':'Ваш возраст (полных лет)','type':'number','min':18,'max':80},
     {'id':'sd_city','label':'Численность населения вашего города','type':'radio',
@@ -734,7 +750,8 @@ SOCDEM_ENTREPRENEUR = [
 
 SOCDEM_EMPLOYEE = [
     {'id':'sd_name','label':'Ваше имя и фамилия','type':'text'},
-    {'id':'sd_gender','label':'Ваш пол','type':'radio','options':['Мужской','Женский','Женский','Предпочитаю не указывать']},
+    {'id':'sd_email','label':'Ваш email','type':'email','hint':'На этот адрес будет отправлена расшифровка ваших результатов'},
+    {'id':'sd_gender','label':'Ваш пол','type':'radio','options':['Мужской','Женский','Предпочитаю не указывать']},
     {'id':'sd_age','label':'Ваш возраст (полных лет)','type':'number','min':18,'max':80},
     {'id':'sd_city','label':'Численность населения вашего города','type':'radio',
      'options':['Более 1 млн человек','От 500 тыс. до 1 млн человек','От 100 до 500 тыс. человек','Менее 100 тыс. человек'],
@@ -910,11 +927,12 @@ def results():
     scales = compute_scales(answers, group)
     interpreted = interpret_results(scales)
     name = answers.get('sd_name', 'Не указано')
+    respondent_email = answers.get('sd_email', '')
     session.pop('result_sid', None)
     clear_survey_session(result_sid)
     # Отправляем email в фоне чтобы не задерживать страницу
     import threading
-    threading.Thread(target=send_notification, args=(name, group, scales, interpreted), daemon=True).start()
+    threading.Thread(target=send_notification, args=(name, group, scales, interpreted, respondent_email), daemon=True).start()
     return render_template('results.html', results=interpreted, scales=scales, name=name)
 
 @app.route('/done')

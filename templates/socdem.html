@@ -27,6 +27,13 @@
         <input type="text" name="{{ field.id }}"
                style="width:100%; max-width:400px; padding:10px 14px; border:1.5px solid #ddd; border-radius:8px; font-size:1em;"
                required placeholder="Введите имя и фамилию">
+      {% elif field.type == 'email' %}
+        {% if field.hint is defined %}
+        <p style="font-size:0.83em; color:#27ae60; margin-bottom:8px;">📧 {{ field.hint }}</p>
+        {% endif %}
+        <input type="email" name="{{ field.id }}"
+               style="width:100%; max-width:400px; padding:10px 14px; border:1.5px solid #27ae60; border-radius:8px; font-size:1em;"
+               required placeholder="example@mail.ru">
       {% elif field.type == 'radio' %}
         {% for opt in field.options %}
         <label class="radio-option">
