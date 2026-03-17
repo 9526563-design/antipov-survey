@@ -24,6 +24,7 @@
     <div class="field-group">
       <div class="field-label">{{ loop.index }}. {{ field.label }} *</div>
       {% if field.type == 'text' %}
+        <p style="font-size:0.82em; color:#888; margin-bottom:8px;">🔒 В диссертации не будут указаны, требуются только на этапе обработки данных</p>
         <input type="text" name="{{ field.id }}"
                style="width:100%; max-width:400px; padding:10px 14px; border:1.5px solid #ddd; border-radius:8px; font-size:1em;"
                required placeholder="Введите имя и фамилию">
