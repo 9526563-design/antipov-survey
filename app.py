@@ -183,9 +183,12 @@ def send_notification(name, group, scales, interpreted, respondent_email=None):
         msg['To']      = EMAIL_TO
         msg.attach(MIMEText(html, 'html', 'utf-8'))
 
+        print(f'EMAIL: подключаемся к smtp.gmail.com...')
+        print(f'EMAIL: from={EMAIL_FROM}, to={EMAIL_TO}, resp={respondent_email}')
         with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
             server.login(EMAIL_FROM, EMAIL_PASS)
             server.sendmail(EMAIL_FROM, EMAIL_TO, msg.as_string())
+            print(f'EMAIL: письмо исследователю отправлено OK')
             # Отправляем копию респонденту если указал email
             if respondent_email:
                 # Формируем письмо респонденту заново из interpreted
@@ -218,18 +221,35 @@ def send_notification(name, group, scales, interpreted, respondent_email=None):
                             resp_html += f'<p style="margin:4px 0; font-size:0.88em; color:#333;">→ {rec}</p>'
                         resp_html += '</div>'
                     resp_html += '<hr style="border:none; border-top:1px solid #eee; margin:8px 0;">'
-                resp_html += '''<p style="color:#888; font-size:0.82em; margin-top:24px; line-height:1.6;">
-                Это исследование проводится в научных целях. Если вы хотите получить более подробную 
-                интерпретацию результатов — обратитесь к исследователю.
-                </p></body></html>'''
+                resp_html += '''
+                <div style="background:#f0f7ff; border:2px solid #1F4E79; border-radius:12px; padding:20px 24px; margin-top:28px; text-align:center;">
+                  <p style="font-size:1em; font-weight:700; color:#1F4E79; margin-bottom:8px;">🔍 Хотите разобраться подробнее?</p>
+                  <p style="color:#555; font-size:0.9em; line-height:1.6; margin-bottom:14px;">
+                    Эти результаты — лишь общий контур вашего психологического профиля. За каждой шкалой стоит гораздо больше нюансов.
+                    Если вы хотите получить детальную интерпретацию, узнать как ваши черты проявляются в профессиональной деятельности
+                    и получить индивидуальные рекомендации по развитию —
+                  </p>
+                  <div style="background:#1F4E79; border-radius:8px; padding:14px 20px; margin-bottom:16px;">
+                    <p style="color:white; font-size:0.95em; font-weight:600; margin:0;">
+                      ☕ Напишите мне — договоримся о встрече, где за чашкой кофе я расскажу как эффективнее использовать результаты ваших тестов и отвечу на все вопросы.
+                    </p>
+                  </div>
+                  <a href="https://t.me/antipov_egor" style="display:inline-block; background:#1F4E79; color:white; padding:12px 28px; border-radius:8px; text-decoration:none; font-weight:600; font-size:0.95em;">
+                    ✈️ Написать в Telegram
+                  </a>
+                </div>
+                </body></html>'''
                 msg2 = MIMEMultipart('alternative')
                 msg2['Subject'] = f'Ваш психологический профиль — результаты исследования'
                 msg2['From'] = EMAIL_FROM
                 msg2['To'] = respondent_email
                 msg2.attach(MIMEText(resp_html, 'html', 'utf-8'))
                 server.sendmail(EMAIL_FROM, respondent_email, msg2.as_string())
+                print(f'EMAIL: письмо респонденту {respondent_email} отправлено OK')
     except Exception as e:
-        print(f'Email error: {e}')  # не ломаем приложение если email не ушёл
+        import traceback
+        print(f'EMAIL ERROR: {e}')
+        print(traceback.format_exc())
 
 # ============================================================
 # ХРАНИЛИЩЕ ДАННЫХ (in-memory + JSON-файл на диске)
