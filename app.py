@@ -8,22 +8,53 @@ from functools import wraps
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'antipov_research_2026_default')
 
+# Папка для постоянных данных — на Render это persistent disk
+# Локально создаётся автоматически рядом с app.py
+DATA_DIR = os.path.join(os.path.dirname(__file__), 'data')
+os.makedirs(DATA_DIR, exist_ok=True)
+
 # Серверное хранилище активных сессий опроса
-# Решает проблему переполнения cookie при большом количестве ответов
+# Хранится и в памяти и на диске — защита от перезапуска сервера
 _sessions = {}
 _sessions_lock = threading.Lock()
+SESSIONS_FILE = os.path.join(DATA_DIR, 'active_sessions.json')
+
+def _load_sessions_from_disk():
+    """Загружает активные сессии с диска при старте"""
+    global _sessions
+    if os.path.exists(SESSIONS_FILE):
+        try:
+            with open(SESSIONS_FILE, 'r', encoding='utf-8') as f:
+                _sessions = json.load(f)
+        except Exception:
+            _sessions = {}
+
+def _save_sessions_to_disk():
+    """Сохраняет все активные сессии на диск"""
+    try:
+        with open(SESSIONS_FILE, 'w', encoding='utf-8') as f:
+            json.dump(_sessions, f, ensure_ascii=False)
+    except Exception:
+        pass  # на Render диск может быть readonly
 
 def get_survey_session(sid):
     with _sessions_lock:
+        data = _sessions.get(sid)
+        if data:
+            return data.copy()
+        # Если нет в памяти — ищем на диске (после перезапуска сервера)
+        _load_sessions_from_disk()
         return _sessions.get(sid, {}).copy()
 
 def set_survey_session(sid, data):
     with _sessions_lock:
         _sessions[sid] = data
+        _save_sessions_to_disk()
 
 def clear_survey_session(sid):
     with _sessions_lock:
         _sessions.pop(sid, None)
+        _save_sessions_to_disk()
 
 def generate_resume_code():
     """Генерирует читаемый 8-символьный код возобновления (без похожих символов)"""
@@ -35,7 +66,7 @@ def save_session_to_disk(sid, sdata):
     code = sdata.get('resume_code')
     if not code:
         return
-    paused_file = os.path.join(os.path.dirname(__file__), 'paused_sessions.json')
+    paused_file = os.path.join(DATA_DIR, 'paused_sessions.json')
     _lock2 = threading.Lock()
     try:
         if os.path.exists(paused_file):
@@ -64,7 +95,7 @@ def load_session_by_code(code):
             if sdata.get('resume_code') == code:
                 return sid, sdata.copy()
     # Затем на диске
-    paused_file = os.path.join(os.path.dirname(__file__), 'paused_sessions.json')
+    paused_file = os.path.join(DATA_DIR, 'paused_sessions.json')
     if os.path.exists(paused_file):
         try:
             with open(paused_file, 'r', encoding='utf-8') as f:
@@ -91,7 +122,7 @@ ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin2026')
 # ============================================================
 # ХРАНИЛИЩЕ ДАННЫХ (in-memory + JSON-файл на диске)
 # ============================================================
-DATA_FILE = os.path.join(os.path.dirname(__file__), 'responses.json')
+DATA_FILE = os.path.join(DATA_DIR, 'responses.json')
 _lock = threading.Lock()
 _responses = []  # список dict: {id, group_type, timestamp, data}
 _next_id = 1
@@ -116,6 +147,7 @@ def _save_to_disk():
 
 def init_db():
     _load_from_disk()
+    _load_sessions_from_disk()
 
 def save_response(group_type, data):
     global _next_id
@@ -718,9 +750,9 @@ def survey_step(step):
             clear_survey_session(sid)
             session.clear()
             return redirect(url_for('done'))
-        # Показываем экран с кодом перед переходом к следующей методике
+        # После каждой методики показываем экран с кодом и кнопкой "продолжить"
         resume_code = sdata.get('resume_code', '')
-        return redirect(url_for('survey_step', step=next_step))
+        return redirect(url_for('step_complete', step=step, next_step=next_step))
 
     # GET — показываем форму
     idx = SURVEY_STEPS.index(step)
@@ -738,6 +770,44 @@ def survey_step(step):
                                next_step=SURVEY_STEPS[idx+1],
                                group=group)
     return redirect(url_for('done'))
+
+@app.route('/step_complete/<step>/<next_step>')
+def step_complete(step, next_step):
+    """Экран между методиками — показывает код и кнопку продолжить"""
+    sid = session.get('sid')
+    if not sid:
+        return redirect(url_for('index'))
+    sdata = get_survey_session(sid)
+    if not sdata:
+        return redirect(url_for('index'))
+    resume_code = sdata.get('resume_code', '')
+    # Названия методик для отображения
+    step_names = {
+        'socdem': 'Социально-демографический блок',
+        'pfq': '5PFQ — Пятифакторный опросник',
+        'usk': 'УСК — Локус контроля',
+        'otec': 'ОТеЦ — Терминальные ценности',
+        'mstat': 'MSTAT-I — Толерантность к неопределённости',
+        'lfr': 'ЛФР-25 — Рациональность и риск',
+        'lie': 'Шкала лжи Айзенка',
+        'mats': 'MATS — Мотивация достижения',
+        'emin': 'ЭмИн — Эмоциональный интеллект',
+        'gses': 'Шкала самоэффективности',
+        'roko': 'РОКО — Каузальные ориентации',
+    }
+    completed_name = step_names.get(step, step)
+    next_name = step_names.get(next_step, next_step)
+    # Прогресс
+    idx = SURVEY_STEPS.index(next_step)
+    progress = int((idx / (len(SURVEY_STEPS) - 1)) * 100)
+    return render_template('step_complete.html',
+        resume_code=resume_code,
+        completed_name=completed_name,
+        next_step=next_step,
+        next_name=next_name,
+        progress=progress,
+        step_num=idx,
+        total_steps=len(SURVEY_STEPS)-1)
 
 @app.route('/pause')
 def pause():
