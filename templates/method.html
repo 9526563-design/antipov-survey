@@ -45,11 +45,9 @@
     <div class="bipolar-mobile">
       {% for num, left, right in items %}
       <div class="bipolar-card">
-        <div class="num">{{ num }}</div>
-        <div class="qualities">
-          <span class="q-left">{{ left }}</span>
-          <span class="q-right">{{ right }}</span>
-        </div>
+        <div class="num">ВОПРОС {{ num }}</div>
+        <span class="q-left">{{ left }}</span>
+        <span class="q-right">{{ right }}</span>
         <div class="scale-row">
           {% for val, lbl in method.scale %}
           <label class="scale-btn">
