@@ -12,6 +12,11 @@ from functools import wraps
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'antipov_research_2026_default')
 
+# Загружаем данные с диска при старте (работает и с gunicorn и локально)
+def _bootstrap():
+    _load_from_disk()
+    _load_sessions_from_disk()
+
 # Папка для постоянных данных — на Render это persistent disk
 # Локально создаётся автоматически рядом с app.py
 DATA_DIR = os.path.join(os.path.dirname(__file__), 'data')
@@ -280,6 +285,13 @@ def _save_to_disk():
 def init_db():
     _load_from_disk()
     _load_sessions_from_disk()
+
+# Автозагрузка данных при импорте модуля (gunicorn не вызывает __main__)
+try:
+    _load_from_disk()
+    _load_sessions_from_disk()
+except Exception:
+    pass
 
 def save_response(group_type, data):
     global _next_id
