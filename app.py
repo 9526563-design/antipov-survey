@@ -337,7 +337,16 @@ def requires_auth(f):
 # ДАННЫЕ МЕТОДИК
 # ============================================================
 SURVEY_STEPS = [
-    'socdem', 'pfq', 'usk', 'otec', 'mstat', 'lfr', 'lie', 'izhs', 'mats', 'emin', 'gses', 'roko', 'done'
+    'socdem',
+    'pfq1', 'pfq2', 'pfq3', 'pfq4', 'pfq5',
+    'usk1', 'usk2',
+    'otec1', 'otec2', 'otec3', 'otec4',
+    'mstat', 'lfr', 'lie',
+    'izhs1', 'izhs2', 'izhs3', 'izhs4',
+    'mats',
+    'emin1', 'emin2',
+    'gses', 'roko',
+    'done'
 ]
 
 METHODS = {
@@ -869,6 +878,27 @@ METHODS = {
     },
 }
 
+# Маппинг частей методик на родительские методики
+METHOD_PARTS = {
+    'pfq1': ('pfq', 0, 1),   # (родитель, начальный индекс секции, конечный)
+    'pfq2': ('pfq', 1, 2),
+    'pfq3': ('pfq', 2, 3),
+    'pfq4': ('pfq', 3, 4),
+    'pfq5': ('pfq', 4, 5),
+    'usk1': ('usk', 0, 22),   # срез items[0:22]
+    'usk2': ('usk', 22, 44),
+    'otec1': ('otec', 0, 20),
+    'otec2': ('otec', 20, 40),
+    'otec3': ('otec', 40, 60),
+    'otec4': ('otec', 60, 80),
+    'izhs1': ('izhs', 0, 22),
+    'izhs2': ('izhs', 22, 44),
+    'izhs3': ('izhs', 44, 66),
+    'izhs4': ('izhs', 66, 88),
+    'emin1': ('emin', 0, 23),
+    'emin2': ('emin', 23, 46),
+}
+
 # Социально-демографический блок
 SOCDEM_ENTREPRENEUR = [
     {'id':'sd_name','label':'Ваше имя и фамилия','type':'text'},
@@ -1011,6 +1041,24 @@ def survey_step(step):
         group_label = 'Предприниматель' if group == 'entrepreneur' else 'Наёмный работник'
         return render_template('socdem.html', fields=fields, group_label=group_label,
                                progress=progress, step=step, step_num=idx+1, total_steps=len(SURVEY_STEPS)-1)
+    elif step in METHOD_PARTS:
+        parent, start, end = METHOD_PARTS[step]
+        base_method = METHODS[parent].copy()
+        # Для pfq — берём срез секций
+        if parent == 'pfq':
+            base_method = dict(base_method)
+            base_method['sections'] = base_method['sections'][start:end]
+        else:
+            # Для остальных — срез questions
+            base_method = dict(base_method)
+            base_method['questions'] = base_method['questions'][start:end]
+        # Добавляем номер части в заголовок
+        part_num = int(step[-1])
+        total_parts = sum(1 for k in METHOD_PARTS if METHOD_PARTS[k][0] == parent)
+        base_method['title'] = base_method['title'] + f' (часть {part_num}/{total_parts})'
+        return render_template('method.html', method=base_method, step=step,
+                               progress=progress, step_num=idx+1, total_steps=len(SURVEY_STEPS)-1,
+                               next_step=SURVEY_STEPS[idx+1], group=group)
     elif step in METHODS:
         method = METHODS[step]
         return render_template('method.html', method=method, step=step,

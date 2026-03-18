@@ -18,7 +18,8 @@
   {% for section_name, items in method.sections %}
   <div class="card" style="padding:20px;">
     <span class="section-divider">{{ section_name }}</span>
-    <table>
+    <!-- Десктоп версия -->
+    <table class="bipolar-table">
       <thead><tr>
         <th class="item-col" style="text-align:right; background:#2c3e50;">Качество А</th>
         <th style="width:30px; background:#2c3e50;">№</th>
@@ -40,12 +41,30 @@
       {% endfor %}
       </tbody>
     </table>
+    <!-- Мобильная версия -->
+    <div class="bipolar-mobile">
+      {% for num, left, right in items %}
+      <div class="bipolar-card">
+        <div style="font-size:0.75em; color:#999; margin-bottom:6px;">{{ num }}</div>
+        <div class="labels"><span>{{ left }}</span><span>{{ right }}</span></div>
+        <div class="radio-row">
+          {% for val, lbl in method.scale %}
+          <div class="radio-item">
+            <input type="radio" name="pfq_{{ num }}" value="{{ val }}" required>
+            <span>{{ lbl }}</span>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
   </div>
   {% endfor %}
 
 {% elif method.type in ('yn',) %}
   <div class="card" style="padding:20px;">
-    <table>
+    <!-- Десктоп -->
+    <table class="scale-table">
       <thead><tr>
         <th style="width:40px;">№</th>
         <th class="item-col">Утверждение</th>
@@ -63,11 +82,30 @@
       {% endfor %}
       </tbody>
     </table>
+    <!-- Мобильная -->
+    <div class="scale-mobile">
+      {% for num, text in method.questions %}
+      <div class="scale-card">
+        <div class="q-text"><span style="color:#999; font-size:0.85em;">{{ num }}. </span>{{ text }}</div>
+        <div class="radio-row" style="justify-content:center; gap:40px;">
+          <div class="radio-item">
+            <input type="radio" name="{{ step }}_{{ num }}" value="1" required>
+            <span style="font-weight:600; color:#27ae60;">ДА</span>
+          </div>
+          <div class="radio-item">
+            <input type="radio" name="{{ step }}_{{ num }}" value="0">
+            <span style="font-weight:600; color:#e74c3c;">НЕТ</span>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
   </div>
 
 {% elif method.type in ('scale5', 'scale4') %}
   <div class="card" style="padding:20px;">
-    <table>
+    <!-- Десктоп -->
+    <table class="scale-table">
       <thead><tr>
         <th style="width:40px;">№</th>
         <th class="item-col">Утверждение</th>
@@ -85,6 +123,22 @@
       {% endfor %}
       </tbody>
     </table>
+    <!-- Мобильная -->
+    <div class="scale-mobile">
+      {% for num, text in method.questions %}
+      <div class="scale-card">
+        <div class="q-text"><span style="color:#999; font-size:0.85em;">{{ num }}. </span>{{ text }}</div>
+        <div class="radio-row">
+          {% for val, lbl in method.scale %}
+          <div class="radio-item">
+            <input type="radio" name="{{ step }}_{{ num }}" value="{{ val }}" required>
+            <span>{{ lbl }}</span>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
   </div>
 
 {% elif method.type == 'ab' %}
