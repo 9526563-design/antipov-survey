@@ -1210,29 +1210,31 @@ def compute_scales(data, group_type):
         s[factor] = sum(vals)
 
     # ── УСК ───────────────────────────────────────────────
-    # Прямые (ДА=1): 2,4,11,12,13,15,16,17,19,20,22,25,27,29,31,32,34,36,37,39,42,44
-    # Обратные (НЕТ=1): 1,3,5,6,7,8,9,10,14,18,21,23,24,26,28,30,33,35,38,40,41,43
-    usk_direct = {2,4,11,12,13,15,16,17,19,20,22,25,27,29,31,32,34,36,37,39,42,44}
-    usk_reverse = {1,3,5,6,7,8,9,10,14,18,21,23,24,26,28,30,33,35,38,40,41,43}
-    # Субшкалы УСК
-    usk_scales = {
-        'usk_io': list(range(1,45)),  # Общий
-        'usk_id': [12,15,27,32,36,37],  # Достижения
-        'usk_in': [1,5,6,7,14,24,33,40,43],  # Неудачи
-        'usk_is': [2,16,20,32,37,41],  # Семья
-        'usk_ip': [9,10,19,21,22,31,42,44],  # Производство
-        'usk_im': [4,6,15,27,32,38],  # Межличностные
-        'usk_iz': [3,13,23,34],  # Здоровье
-    }
-    for scale_name, items in usk_scales.items():
-        total = 0
-        for i in items:
-            raw = safe_int(data.get(f'usk_{i}', 0))
-            if i in usk_direct:
-                total += raw  # ДА=1, НЕТ=0
-            else:
-                total += (1 - raw)  # НЕТ=1, ДА=0
-        s[scale_name] = total
+    # Ключ: Бажин Е.Ф., Голынкина Е.А., Эткинд А.М.
+    # Источник: Психологический журнал, 1984, Том 5, №3, с.161
+
+    def usk_score(plus_items, minus_items):
+        total = sum(safe_int(data.get(f'usk_{i}', 0)) for i in plus_items)
+        total += sum(1 - safe_int(data.get(f'usk_{i}', 0)) for i in minus_items)
+        return total
+
+    # Ио — Общая интернальность (22+ / 22- = 44 пункта)
+    s['usk_io'] = usk_score(
+        [2,4,11,12,13,15,16,17,19,20,22,25,27,29,31,32,34,36,37,39,42,44],
+        [1,3,5,6,7,8,9,10,14,18,21,23,24,26,28,30,33,35,38,40,41,43]
+    )
+    # Ид — Достижения (6+ / 6- = 12 пунктов)
+    s['usk_id'] = usk_score([12,15,27,32,36,37], [1,5,6,14,26,43])
+    # Ин — Неудачи (6+ / 6- = 12 пунктов)
+    s['usk_in'] = usk_score([2,4,20,31,42,44], [7,24,33,38,40,41])
+    # Ис — Семья (5+ / 5- = 10 пунктов)
+    s['usk_is'] = usk_score([2,16,20,32,37], [7,14,26,28,41])
+    # Ип — Производство (4+ / 4- = 8 пунктов)
+    s['usk_ip'] = usk_score([19,22,25,42], [1,9,10,30])
+    # Им — Межличностные (2+ / 2- = 4 пункта)
+    s['usk_im'] = usk_score([4,27], [6,38])
+    # Из — Здоровье (2+ / 2- = 4 пункта)
+    s['usk_iz'] = usk_score([13,34], [3,23])
 
     # ── ОТеЦ ──────────────────────────────────────────────
     # 8 ценностей × 5 сфер. Ключ: каждые 8 пунктов = одна сфера, каждый пункт относится к одной ценности
@@ -1531,19 +1533,13 @@ def export_excel():
     ]
 
     # Строка 1 — короткие имена (для SPSS)
-    # Строка 2 — полные названия
+    # Только заголовки — данные начинаются со строки 2 (совместимо с SPSS)
     for col, (key, label, color) in enumerate(scale_headers, 1):
         hdr_cell(ws2, 1, col, key, color)
-        c2 = ws2.cell(row=2, column=col, value=label)
-        c2.fill = PatternFill('solid', fgColor='D9D9D9')
-        c2.font = Font(bold=False, size=9)
-        c2.alignment = center_al
-        c2.border = thin_border
 
     ws2.row_dimensions[1].height = 25
-    ws2.row_dimensions[2].height = 30
 
-    for row_idx, (rid, group_type, timestamp, data_json) in enumerate(rows, 3):
+    for row_idx, (rid, group_type, timestamp, data_json) in enumerate(rows, 2):
         data = json.loads(data_json)
         sc = compute_scales(data, group_type)
         row_data2 = [
@@ -1587,6 +1583,65 @@ def export_excel():
     filename = f'data_spss_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
     return send_file(buf, as_attachment=True, download_name=filename,
                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+@app.route('/admin/export_csv')
+@requires_auth
+def export_csv():
+    rows = get_all_responses()
+    if not rows:
+        return 'Нет данных для выгрузки', 400
+
+    import csv, io as _io
+    buf = _io.StringIO()
+
+    # Заголовки шкальных баллов
+    scale_headers = [
+        'ID', 'group_num', 'timestamp',
+        'sd_gender', 'sd_age', 'sd_edu', 'sd_sphere', 'sd_total_exp',
+        'pfq_e', 'pfq_a', 'pfq_c', 'pfq_n', 'pfq_o',
+        'usk_io', 'usk_id', 'usk_in', 'usk_is', 'usk_ip', 'usk_im', 'usk_iz',
+        'otec_sd', 'otec_du', 'otec_kr', 'otec_sr', 'otec_so', 'otec_pr', 'otec_vl', 'otec_uo',
+        'mstat_total', 'lfr_r', 'lfr_risk',
+        'lie_total', 'lie_valid',
+        'izhs_denial', 'izhs_repression', 'izhs_regression',
+        'izhs_comp', 'izhs_proj', 'izhs_repl', 'izhs_intel', 'izhs_react', 'izhs_total',
+        'mats_success', 'mats_avoid', 'mats_total',
+        'emin_mp', 'emin_mu', 'emin_vp', 'emin_vu', 'emin_mei', 'emin_vei', 'emin_total',
+        'gses_total', 'roko_a', 'roko_p', 'roko_b',
+    ]
+
+    writer = csv.writer(buf, delimiter=';')
+    writer.writerow(scale_headers)
+
+    for rid, group_type, timestamp, data_json in rows:
+        data = json.loads(data_json)
+        sc = compute_scales(data, group_type)
+        row = [
+            rid, sc['group_num'], timestamp,
+            data.get('sd_gender',''), data.get('sd_age',''),
+            data.get('sd_edu',''), data.get('sd_sphere',''), data.get('sd_total_exp',''),
+            sc['pfq_e'], sc['pfq_a'], sc['pfq_c'], sc['pfq_n'], sc['pfq_o'],
+            sc['usk_io'], sc['usk_id'], sc['usk_in'], sc['usk_is'], sc['usk_ip'], sc['usk_im'], sc['usk_iz'],
+            sc['otec_sd'], sc['otec_du'], sc['otec_kr'], sc['otec_sr'], sc['otec_so'], sc['otec_pr'], sc['otec_vl'], sc['otec_uo'],
+            sc['mstat_total'], sc['lfr_r'], sc['lfr_risk'],
+            sc['lie_total'], sc['lie_valid'],
+            sc['izhs_denial'], sc['izhs_repression'], sc['izhs_regression'],
+            sc['izhs_comp'], sc['izhs_proj'], sc['izhs_repl'], sc['izhs_intel'], sc['izhs_react'], sc['izhs_total'],
+            sc['mats_success'], sc['mats_avoid'], sc['mats_total'],
+            sc['emin_mp'], sc['emin_mu'], sc['emin_vp'], sc['emin_vu'], sc['emin_mei'], sc['emin_vei'], sc['emin_total'],
+            sc['gses_total'], sc['roko_a'], sc['roko_p'], sc['roko_b'],
+        ]
+        writer.writerow(row)
+
+    output = buf.getvalue().encode('utf-8-sig')  # utf-8-sig для корректного открытия в Excel/SPSS
+    filename = f'data_spss_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
+    return send_file(
+        _io.BytesIO(output),
+        as_attachment=True,
+        download_name=filename,
+        mimetype='text/csv'
+    )
+
 
 if __name__ == '__main__':
     init_db()
