@@ -54,6 +54,19 @@
 .rcard-btn { flex:1; padding:10px 2px; background:#f0f4f8; border:2px solid transparent; border-radius:8px; text-align:center; font-size:0.82em; font-weight:700; color:#666; cursor:pointer; position:relative; }
 .rcard-btn input[type=radio] { position:absolute; opacity:0; width:0; height:0; }
 .rcard-btn.sel { background:#1F4E79; color:white; border-color:#1F4E79; }
+
+/* ── РОКО-3 (выбор 1 из 3) ── */
+.r3card { background:white; border-radius:14px; padding:18px; margin-bottom:14px; box-shadow:0 2px 8px rgba(0,0,0,0.09); }
+.r3card-num { font-size:0.72em; color:#bbb; font-weight:700; letter-spacing:1px; margin-bottom:8px; }
+.r3card-sit { background:#EBF3FB; border-left:4px solid #1F4E79; border-radius:8px; padding:12px 14px; font-weight:700; font-size:0.93em; color:#1F4E79; line-height:1.55; margin-bottom:14px; }
+.r3card-options { display:flex; flex-direction:column; gap:8px; }
+.r3card-opt { display:flex; align-items:flex-start; gap:10px; padding:12px 14px; background:#f8f9fa; border:2px solid #e9ecef; border-radius:10px; cursor:pointer; transition:all .15s; }
+.r3card-opt input[type=radio] { position:absolute; opacity:0; width:0; height:0; }
+.r3card-dot { width:20px; height:20px; min-width:20px; border-radius:50%; border:2px solid #bbb; background:white; margin-top:2px; }
+.r3card-text { font-size:0.9em; color:#333; line-height:1.5; }
+.r3card-opt.sel { background:#EBF3FB; border-color:#1F4E79; }
+.r3card-opt.sel .r3card-dot { background:#1F4E79; border-color:#1F4E79; box-shadow:inset 0 0 0 3px white; }
+.r3card-opt.sel .r3card-text { color:#1F4E79; font-weight:600; }
 </style>
 {% endblock %}
 
@@ -251,6 +264,24 @@
     </div>
   </div>
   {% endfor %}
+
+{% elif method.type == 'roko3' %}
+  {% for num, situation, reactions in method.questions %}
+  <div class="r3card">
+    <div class="r3card-num">СИТУАЦИЯ {{ num }} / {{ method.questions|length }}</div>
+    <div class="r3card-sit">{{ situation }}</div>
+    <div class="r3card-options">
+      {% for code, text in reactions %}
+      <label class="r3card-opt" style="position:relative;">
+        <input type="radio" name="roko_{{ num }}" value="{{ code }}" required>
+        <div class="r3card-dot"></div>
+        <div class="r3card-text">{{ text }}</div>
+      </label>
+      {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+
 {% endif %}
 
   <div class="sticky-nav">
@@ -275,10 +306,10 @@ document.addEventListener('change', function(e) {
   if (e.target.type !== 'radio') return;
   var nm = e.target.name;
   document.querySelectorAll('input[name="' + nm + '"]').forEach(function(r) {
-    var b = r.closest('.bcard-btn,.scard-btn,.yn-btn,.rcard-btn');
+    var b = r.closest('.bcard-btn,.scard-btn,.yn-btn,.rcard-btn,.r3card-opt');
     if (b) b.classList.remove('sel');
   });
-  var b = e.target.closest('.bcard-btn,.scard-btn,.yn-btn,.rcard-btn');
+  var b = e.target.closest('.bcard-btn,.scard-btn,.yn-btn,.rcard-btn,.r3card-opt');
   if (b) b.classList.add('sel');
 });
 
